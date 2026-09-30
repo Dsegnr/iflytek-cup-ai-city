@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能交通AI管控系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .map-node {
+                @apply w-12 h-12 flex items-center justify-center rounded-full text-white font-bold transition-all duration-300;
+            }
+            .map-lane {
+                @apply h-1 bg-gray-300 absolute transition-all duration-500;
+            }
+            .congestion-light {
+                @apply bg-green-500;
+            }
+            .congestion-moderate {
+                @apply bg-yellow-500;
+            }
+            .congestion-heavy {
+                @apply bg-red-500;
+            }
+            .control-active {
+                @apply scale-110 ring-2 ring-blue-500;
+            }
+        }
+        
+        /* 自定义地图样式 */
+        #baidu-map {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .custom-marker {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        
+        .marker-light { background-color: #22c55e; }
+        .marker-moderate { background-color: #eab308; }
+        .marker-heavy { background-color: #ef4444; }
+        .marker-control { 
+            background-color: #3b82f6; 
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .traffic-line {
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+        
+        .line-light { stroke: #22c55e; }
+        .line-moderate { stroke: #eab308; }
+        .line-heavy { stroke: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- 顶部导航 -->
+    <header class="bg-blue-600 text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fa fa-car mr-2"></i>智能交通AI管控系统
+            </h1>
+            <div class="text-sm">
+                <span id="current-time">加载中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左侧：百度地图集成 -->
+        <div class="lg:col-span-1 bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fa fa-map-marker mr-2 text-blue-600"></i>实时交通地图
+            </h2>
+            <div class="relative h-80">
+                <!-- 百度地图容器 -->
+                <div id="baidu-map" class="w-full h-full"></div>
+            </div>
+            <div class="mt-4 flex flex-wrap justify-center gap-4">
+                <span class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-1"></span>轻度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-yellow-500 rounded-full mr-1"></span>中度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-1"></span>重度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded-full mr-1 pulse-animation"></span>调控中</span>
+            </div>
+        </div>
+
+        <!-- 中间：数据与控制 -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- 拥堵预测结果 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-bar-chart mr-2 text-blue-600"></i>车道拥堵预测
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">路口</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车道</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">转向</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">拥堵等级</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">重度拥堵概率</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prediction-table" class="bg-white divide-y divide-gray-200">
+                            <!-- 数据将通过JS动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 控制指令 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-exclamation-triangle mr-2 text-yellow-600"></i>当前控制指令
+                </h2>
+                <div id="control-commands" class="p-3 bg-blue-50 rounded-lg">
+                    <p class="text-center text-gray-500">暂无调控指令，等待拥堵触发...</p>
+                </div>
+            </div>
+
+            <!-- 调控日志 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-history mr-2 text-blue-600"></i>调控历史日志
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">触发车道</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">控制指令</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">拥堵长度变化</th>
+                            </tr>
+                        </thead>
+                        <tbody id="control-log" class="bg-white divide-y divide-gray-200">
+                            <!-- 日志将通过JS动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 百度地图API加载 - 使用正确的AK和标准API -->
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=3.0&ak=c4hUBLXvShVeLlkJ5VnODjLHa0ZkENy2&s=1"></script>
+    <script>
+        // 全局变量
+        let map;
+        let markers = {};
+        let polylines = {};
+        
+        // 初始化百度地图
+        function initBaiduMap() {
+            // 使用实际的中关村区域坐标
+            const locations = {
+                "A": { lng: 116.3320, lat: 39.9920, name: "中关村路口" },
+                "B": { lng: 116.3400, lat: 39.9880, name: "海淀路口" },
+                "C": { lng: 116.3240, lat: 39.9960, name: "清华园路口" },
+                "D": { lng: 116.3480, lat: 39.9840, name: "苏州街路口" }
+            };
+
+            // 创建地图实例
+            map = new BMap.Map("baidu-map");
+            const point = new BMap.Point(116.3320, 39.9920); // 中关村中心点
+            map.centerAndZoom(point, 15);
+            map.enableScrollWheelZoom(true);
+            map.addControl(new BMap.NavigationControl());
+            map.addControl(new BMap.ScaleControl());
+            
+            // 添加路网图层
+            addRoadNetwork(locations);
+            
+            // 添加路口标记
+            for (const [id, loc] of Object.entries(locations)) {
+                addIntersectionMarker(id, loc);
+            }
+            
+            // 添加车道连线
+            addLaneConnections(locations);
+            
+            return map;
+        }
+        
+        // 添加路网图层
+        function addRoadNetwork(locations) {
+            // 主要道路
+            const roads = [
+                {
+                    points: [
+                        new BMap.Point(116.3200, 39.9900),
+                        new BMap.Point(116.3400, 39.9900),
+                        new BMap.Point(116.3600, 39.9900)
+                    ],
+                    name: "中关村大街",
+                    width: 8
+                },
+                {
+                    points: [
+                        new BMap.Point(116.3320, 40.0000),
+                        new BMap.Point(116.3320, 39.9800)
+                    ],
+                    name: "中关村北大街",
+                    width: 6
+                },
+                {
+                    points: [
+                        new BMap.Point(116.3400, 40.0000),
+                        new BMap.Point(116.3400, 39.9800)
+                    ],
+                    name: "海淀大街",
+                    width: 6
+                }
+            ];
+            
+            roads.forEach(road => {
+                const polyline = new BMap.Polyline(road.points, {
+                    strokeColor: "#4B5563",
+                    strokeWeight: road.width,
+                    strokeOpacity: 0.7
+                });
+                map.addOverlay(polyline);
+                
+                // 添加道路标签
+                if (road.points.length >= 2) {
+                    const midIndex = Math.floor(road.points.length / 2);
+                    const labelPoint = road.points[midIndex];
+                    const label = new BMap.Label(road.name, {
+                        position: labelPoint,
+                        offset: new BMap.Size(0, -10)
+                    });
+                    label.setStyle({
+                        backgroundColor: "rgba(255,255,255,0.8)",
+                        border: "none",
+                        borderRadius: "3px",
+                        padding: "2px 6px",
+                        fontSize: "10px",
+                        color: "#374151"
+                    });
+                    map.addOverlay(label);
+                }
+            });
+        }
+        
+        // 添加路口标记
+        function addIntersectionMarker(id, location) {
+            // 创建自定义标记
+            const marker = new BMap.Marker(new BMap.Point(location.lng, location.lat), {
+                icon: new BMap.Icon('', new BMap.Size(30, 30), {
+                    anchor: new BMap.Size(15, 15),
+                    imageSize: new BMap.Size(30, 30)
+                })
+            });
+            
+            // 添加标签
+            const label = new BMap.Label(id, {
+                position: new BMap.Point(location.lng, location.lat),
+                offset: new BMap.Size(0, 20)
+            });
+            label.setStyle({
+                backgroundColor: "rgba(255,255,255,0.9)",
+                border: "1px solid #ccc",
+                borderRadius: "3px",
+                padding: "2px 6px",
+                fontSize: "12px",
+                fontWeight: "bold",
+                color: "#1F2937"
+            });
+            
+            map.addOverlay(marker);
+            map.addOverlay(label);
+            
+            // 保存标记引用
+            markers[id] = {
+                marker: marker,
+                label: label,
+                location: location
+            };
+            
+            // 初始设置为轻度拥堵
+            updateMarkerCongestion(id, 'light');
+            
+            // 添加点击事件
+            marker.addEventListener('click', function() {
+                showIntersectionInfo(id, location);
+            });
+        }
+        
+        // 添加车道连线
+        function addLaneConnections(locations) {
+            const connections = [
+                { from: "A", to: "B", lanes: ["A1→B1", "A2→B2"] },
+                { from: "B", to: "D", lanes: ["B1→D1"] },
+                { from: "C", to: "A", lanes: ["C1→A1"] }
+            ];
+            
+            connections.forEach(conn => {
+                const fromLoc = locations[conn.from];
+                const toLoc = locations[conn.to];
+                
+                const polyline = new BMap.Polyline([
+                    new BMap.Point(fromLoc.lng, fromLoc.lat),
+                    new BMap.Point(toLoc.lng, toLoc.lat)
+                ], {
+                    strokeColor: "#6B7280",
+                    strokeWeight: 3,
+                    strokeOpacity: 0.6,
+                    strokeStyle: "dashed"
+                });
+                
+                map.addOverlay(polyline);
+                
+                // 保存连线引用
+                const key = `${conn.from}-${conn.to}`;
+                polylines[key] = {
+                    polyline: polyline,
+                    lanes: conn.lanes,
+                    congestion: 'light'
+                };
+            });
+        }
+        
+        // 更新标记拥堵状态
+        function updateMarkerCongestion(id, level) {
+            if (!markers[id]) return;
+            
+            const marker = markers[id].marker;
+            let color, animation;
+            
+            switch(level) {
+                case 'light':
+                    color = '#22c55e'; // 绿色
+                    animation = null;
+                    break;
+                case 'moderate':
+                    color = '#eab308'; // 黄色
+                    animation = BMAP_ANIMATION_BOUNCE;
+                    break;
+                case 'heavy':
+                    color = '#ef4444'; // 红色
+                    animation = BMAP_ANIMATION_BOUNCE;
+                    break;
+                case 'control':
+                    color = '#3b82f6'; // 蓝色
+                    animation = BMAP_ANIMATION_BOUNCE;
+                    break;
+                default:
+                    color = '#6b7280'; // 灰色
+                    animation = null;
+            }
+            
+            // 创建自定义图标
+            const icon = new BMap.Icon(createCustomMarker(color), new BMap.Size(30, 30), {
+                anchor: new BMap.Size(15, 15),
+                imageSize: new BMap.Size(30, 30)
+            });
+            
+            marker.setIcon(icon);
+            
+            if (animation) {
+                marker.setAnimation(animation);
+            } else {
+                marker.setAnimation(null);
+            }
+        }
+        
+        // 创建自定义标记SVG
+        function createCustomMarker(color) {
+            const svg = `
+                <svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="15" cy="15" r="12" fill="${color}" stroke="white" stroke-width="2"/>
+                    <circle cx="15" cy="15" r="6" fill="white" opacity="0.8"/>
+                </svg>
+            `;
+            return 'data:image/svg+xml;base64,' + btoa(svg);
+        }
+        
+        // 显示路口信息
+        function showIntersectionInfo(id, location) {
+            const infoWindow = new BMap.InfoWindow(`
+                <div class="p-2">
+                    <h3 class="font-bold">路口 ${id}</h3>
+                    <p>${location.name}</p>
+                    <p class="text-sm text-gray-600">经度: ${location.lng.toFixed(4)}</p>
+                    <p class="text-sm text-gray-600">纬度: ${location.lat.toFixed(4)}</p>
+                </div>
+            `, {
+                width: 200,
+                height: 120
+            });
+            
+            map.openInfoWindow(infoWindow, new BMap.Point(location.lng, location.lat));
+        }
+        
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('current-time').textContent = timeStr;
+        }
+
+        // 模拟拥堵预测数据
+        function generatePredictionData() {
+            return [
+                { intersection: 'A', lane: 'A1', turn: '直行', level: 'light', prob: 0.25 },
+                { intersection: 'A', lane: 'A2', turn: '左转', level: 'moderate', prob: 0.55 },
+                { intersection: 'B', lane: 'B1', turn: '直行', level: 'light', prob: 0.30 },
+                { intersection: 'B', lane: 'B2', turn: '左转', level: 'heavy', prob: 0.80 },
+                { intersection: 'C', lane: 'C1', turn: '直行', level: 'light', prob: 0.15 },
+                { intersection: 'D', lane: 'D1', turn: '直行', level: 'moderate', prob: 0.45 },
+            ];
+        }
+
+        // 填充预测表格
+        function fillPredictionTable(data) {
+            const table = document.getElementById('prediction-table');
+            table.innerHTML = '';
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.intersection}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.lane}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.turn}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            ${item.level === 'light' ? 'bg-green-100 text-green-800' : 
+                              item.level === 'moderate' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'}">
+                            ${item.level === 'light' ? '轻度拥堵' : 
+                             item.level === 'moderate' ? '中度拥堵' : '重度拥堵'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(item.prob * 100).toFixed(1)}%</td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // 模拟控制指令
+        function generateControlCommands() {
+            return [
+                { intersection: 'B', lane: 'B2', turn: '左转', command: '延长10秒' },
+                { intersection: 'A', lane: 'A2', turn: '左转', command: '延长5秒' },
+            ];
+        }
+
+        // 填充控制指令
+        function fillControlCommands(commands) {
+            const container = document.getElementById('control-commands');
+            if (commands.length > 0) {
+                let html = '<ul class="space-y-2">';
+                commands.forEach(cmd => {
+                    html += `
+                        <li class="flex items-center p-2 bg-white rounded border">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            <div>
+                                <span class="font-medium">路口${cmd.intersection}-车道${cmd.lane}(${cmd.turn})</span>
+                                <span class="text-blue-600 ml-2">绿灯${cmd.command}</span>
+                            </div>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                container.innerHTML = html;
+            }
+        }
+
+        // 模拟调控日志
+        function generateLogData() {
+            return [
+                { time: '2025-11-06 10:23:45', lane: 'B2(左转)', command: '延长10秒', change: '0.45km → 0.21km' },
+                { time: '2025-11-06 09:15:20', lane: 'A2(左转)', command: '延长5秒', change: '0.38km → 0.15km' },
+                { time: '2025-11-06 08:45:10', lane: 'D1(直行)', command: '延长8秒', change: '0.52km → 0.28km' },
+            ];
+        }
+
+        // 填充调控日志
+        function fillControlLog(data) {
+            const table = document.getElementById('control-log');
+            table.innerHTML = '';
+            data.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.time}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${log.lane}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.command}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.change}</td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // 模拟地图拥堵状态更新
+        function updateMapCongestion() {
+            // 模拟实时拥堵变化
+            const congestionStates = {
+                "A": "moderate",
+                "B": "heavy", 
+                "C": "light",
+                "D": "moderate"
+            };
+
+            // 更新路口标记颜色
+            for (const [id, state] of Object.entries(congestionStates)) {
+                updateMarkerCongestion(id, state);
+            }
+            
+            // 标记调控中的路口
+            updateMarkerCongestion('B', 'control');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+
+            // 初始化地图
+            initBaiduMap();
+            
+            // 初始化数据
+            const predictionData = generatePredictionData();
+            fillPredictionTable(predictionData);
+
+            const controlCommands = generateControlCommands();
+            fillControlCommands(controlCommands);
+
+            const logData = generateLogData();
+            fillControlLog(logData);
+
+            // 初始更新地图状态
+            setTimeout(() => {
+                updateMapCongestion();
+            }, 1000);
+            
+            // 定期更新地图状态
+            setInterval(() => updateMapCongestion(), 8000);
+        });
+    </script>
+</body>
+</html>

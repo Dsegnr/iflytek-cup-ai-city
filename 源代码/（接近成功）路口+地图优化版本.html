@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能交通AI管控系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .map-node {
+                @apply w-12 h-12 flex items-center justify-center rounded-full text-white font-bold transition-all duration-300;
+            }
+            .map-lane {
+                @apply h-1 bg-gray-300 absolute transition-all duration-500;
+            }
+            .congestion-light {
+                @apply bg-green-500;
+            }
+            .congestion-moderate {
+                @apply bg-yellow-500;
+            }
+            .congestion-heavy {
+                @apply bg-red-500;
+            }
+            .control-active {
+                @apply scale-110 ring-2 ring-blue-500;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- 顶部导航 -->
+    <header class="bg-blue-600 text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fa fa-car mr-2"></i>智能交通AI管控系统
+            </h1>
+            <div class="text-sm">
+                <span id="current-time">加载中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左侧：百度地图集成 -->
+        <div class="lg:col-span-1 bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fa fa-map-marker mr-2 text-blue-600"></i>实时交通地图
+            </h2>
+            <div class="relative h-80">
+                <!-- 百度地图容器 -->
+                <div id="baidu-map" class="w-full h-full"></div>
+            </div>
+            <div class="mt-4 flex justify-center space-x-4">
+                <span class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-1"></span>轻度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-yellow-500 rounded-full mr-1"></span>中度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-1"></span>重度拥堵</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded-full mr-1"></span>调控中</span>
+            </div>
+        </div>
+
+        <!-- 中间：数据与控制 -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- 拥堵预测结果 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-bar-chart mr-2 text-blue-600"></i>车道拥堵预测
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">路口</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车道</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">转向</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">拥堵等级</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">重度拥堵概率</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prediction-table" class="bg-white divide-y divide-gray-200">
+                            <!-- 数据将通过JS动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 控制指令 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-exclamation-triangle mr-2 text-yellow-600"></i>当前控制指令
+                </h2>
+                <div id="control-commands" class="p-3 bg-blue-50 rounded-lg">
+                    <p class="text-center text-gray-500">暂无调控指令，等待拥堵触发...</p>
+                </div>
+            </div>
+
+            <!-- 调控日志 -->
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fa fa-history mr-2 text-blue-600"></i>调控历史日志
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">触发车道</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">控制指令</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">拥堵长度变化</th>
+                            </tr>
+                        </thead>
+                        <tbody id="control-log" class="bg-white divide-y divide-gray-200">
+                            <!-- 日志将通过JS动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 百度地图API加载 -->
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=3.0&ak=您的AK"></script>
+    <script>
+        // 初始化百度地图
+        function initBaiduMap() {
+            // 假设管控路口的经纬度（需替换为实际坐标）
+            const locations = {
+                "A": { lng: 116.404, lat: 39.915 },
+                "B": { lng: 116.414, lat: 39.925 },
+            };
+
+            // 创建地图实例
+            const map = new BMap.Map("baidu-map");
+            const point = new BMap.Point(116.404, 39.915); // 中心点
+            map.centerAndZoom(point, 16);
+            map.enableScrollWheelZoom();
+
+            // 添加路口标记
+            for (const [id, loc] of Object.entries(locations)) {
+                const marker = new BMap.Marker(new BMap.Point(loc.lng, loc.lat));
+                marker.setTitle(id);
+                marker.setLabel(new BMap.Label(id, { offset: new BMap.Size(20, -10) }));
+                map.addOverlay(marker);
+
+                // 初始化拥堵状态（轻度）
+                marker.setAnimation(BMAP_ANIMATION_DROP);
+                marker.setIcon(new BMap.Icon(
+                    `https://lbsyun.baidu.com/jsdemo/img/car.png`,
+                    new BMap.Size(32, 32),
+                    { anchor: new BMap.Size(16, 32) }
+                ));
+            }
+
+            // 模拟车道连线（简化）
+            const laneAB = new BMap.Polyline([
+                new BMap.Point(116.404, 39.915),
+                new BMap.Point(116.414, 39.925)
+            ], { strokeColor: "#808080", strokeWeight: 2, strokeOpacity: 0.5 });
+            map.addOverlay(laneAB);
+
+            return map;
+        }
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('current-time').textContent = timeStr;
+        }
+
+        // 模拟拥堵预测数据
+        function generatePredictionData() {
+            return [
+                { intersection: 'A', lane: 'A1', turn: 'straight', level: 'light', prob: 0.25 },
+                { intersection: 'A', lane: 'A2', turn: 'left', level: 'moderate', prob: 0.55 },
+                { intersection: 'B', lane: 'B1', turn: 'straight', level: 'light', prob: 0.30 },
+                { intersection: 'B', lane: 'B2', turn: 'left', level: 'heavy', prob: 0.80 },
+            ];
+        }
+
+        // 填充预测表格
+        function fillPredictionTable(data) {
+            const table = document.getElementById('prediction-table');
+            table.innerHTML = '';
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.intersection}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.lane}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.turn}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            ${item.level === 'light' ? 'bg-green-100 text-green-800' : 
+                              item.level === 'moderate' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'}">
+                            ${item.level}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(item.prob * 100).toFixed(1)}%</td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // 模拟控制指令
+        function generateControlCommands() {
+            return [
+                { intersection: 'B', lane: 'B2', turn: 'left', command: '延长10秒' },
+            ];
+        }
+
+        // 填充控制指令
+        function fillControlCommands(commands) {
+            const container = document.getElementById('control-commands');
+            if (commands.length > 0) {
+                let html = '<ul class="space-y-2">';
+                commands.forEach(cmd => {
+                    html += `
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            路口${cmd.intersection}-车道${cmd.lane}(${cmd.turn})：绿灯${cmd.command}
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                container.innerHTML = html;
+            }
+        }
+
+        // 模拟调控日志
+        function generateLogData() {
+            return [
+                { time: '2025-11-06 10:23:45', lane: 'B2(左)', command: '延长10秒', change: '0.45km → 0.21km' },
+                { time: '2025-11-06 09:15:20', lane: 'A2(左)', command: '延长5秒', change: '0.38km → 0.15km' },
+            ];
+        }
+
+        // 填充调控日志
+        function fillControlLog(data) {
+            const table = document.getElementById('control-log');
+            table.innerHTML = '';
+            data.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.time}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${log.lane}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.command}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${log.change}</td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // 模拟地图拥堵状态更新
+        function updateMapCongestion(map) {
+            // 模拟实时拥堵变化
+            const congestionStates = {
+                "A": "light",
+                "B": "heavy"
+            };
+
+            // 更新路口标记颜色
+            for (const [id, state] of Object.entries(congestionStates)) {
+                const markers = map.getOverlays().filter(overlay => 
+                    overlay instanceof BMap.Marker && overlay.getTitle() === id
+                );
+                if (markers.length > 0) {
+                    const marker = markers[0];
+                    marker.setIcon(new BMap.Icon(
+                        `https://lbsyun.baidu.com/jsdemo/img/car.png`,
+                        new BMap.Size(32, 32),
+                        { 
+                            anchor: new BMap.Size(16, 32),
+                            imageOffset: new BMap.Size(0, state === 'heavy' ? 32 : state === 'moderate' ? 64 : 0)
+                        }
+                    ));
+                }
+            }
+
+            // 标记调控中的路口
+            const controlMarker = map.getOverlays().filter(overlay => 
+                overlay instanceof BMap.Marker && overlay.getTitle() === 'B'
+            )[0];
+            if (controlMarker) {
+                controlMarker.setAnimation(BMAP_ANIMATION_BOUNCE);
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+
+            const map = initBaiduMap();
+            const predictionData = generatePredictionData();
+            fillPredictionTable(predictionData);
+
+            const controlCommands = generateControlCommands();
+            fillControlCommands(controlCommands);
+
+            const logData = generateLogData();
+            fillControlLog(logData);
+
+            updateMapCongestion(map);
+            setInterval(() => updateMapCongestion(map), 5000);
+        });
+    </script>
+</body>
+</html>

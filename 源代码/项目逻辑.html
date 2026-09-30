@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交通管控AI模型算法流程（思维导图式）</title>
+    <!-- 引入思维导图库与样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: "Microsoft YaHei", "Heiti SC", sans-serif;
+            background-color: #f5f7fa;
+            color: #2c3e50;
+            line-height: 1.8;
+        }
+        .mindmap-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.05);
+        }
+        .mindmap-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 3px solid #3498db;
+        }
+        .mindmap-header h1 {
+            color: #2980b9;
+            font-size: 2.4rem;
+            margin: 0;
+        }
+        .mindmap-header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+        /* 思维导图节点样式 */
+        .mindmap {
+            position: relative;
+            padding: 2rem 0;
+        }
+        .root-node {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        .root-node .node-box {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 1.2rem 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(52,152,219,0.3);
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        /* 一级节点容器 */
+        .level-1-container {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 4rem;
+            position: relative;
+        }
+        .level-1-container::before {
+            content: "";
+            position: absolute;
+            top: -2rem;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background: #bdc3c7;
+        }
+        /* 节点通用样式 */
+        .node {
+            position: relative;
+            width: 40%;
+        }
+        .node-box {
+            background: #ecf0f1;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+            border-left: 4px solid #3498db;
+        }
+        .node-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2980b9;
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+        }
+        .node-title i {
+            margin-right: 0.5rem;
+            font-size: 1.1em;
+        }
+        .node-content {
+            padding-left: 1.8rem;
+        }
+        /* 二级节点 */
+        .level-2-container {
+            margin-top: 1.5rem;
+            padding-left: 1.2rem;
+            position: relative;
+        }
+        .level-2-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: #bdc3c7;
+        }
+        .level-2-node {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        .level-2-node::before {
+            content: "";
+            position: absolute;
+            top: 0.8rem;
+            left: -1.2rem;
+            width: 12px;
+            height: 2px;
+            background: #bdc3c7;
+        }
+        .level-2-node .node-box {
+            background: #f8f9fa;
+            border-left-color: #27ae60;
+        }
+        .level-2-node .node-title {
+            color: #27ae60;
+            font-size: 1.1rem;
+        }
+        /* 三级节点 */
+        .level-3-container {
+            margin-top: 0.8rem;
+            padding-left: 1rem;
+            position: relative;
+        }
+        .level-3-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: #bdc3c7;
+        }
+        .level-3-node {
+            margin-bottom: 0.6rem;
+            position: relative;
+        }
+        .level-3-node::before {
+            content: "";
+            position: absolute;
+            top: 0.8rem;
+            left: -1rem;
+            width: 10px;
+            height: 2px;
+            background: #bdc3c7;
+        }
+        .level-3-node .node-box {
+            background: #fdfdfd;
+            border-left-color: #f39c12;
+            padding: 0.8rem 1.2rem;
+        }
+        .level-3-node .node-title {
+            color: #f39c12;
+            font-size: 1rem;
+        }
+        /* 响应式调整 */
+        @media (max-width: 992px) {
+            .level-1-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .node {
+                width: 80%;
+                margin-bottom: 3rem;
+            }
+            .level-1-container::before {
+                width: 2px;
+                height: 2rem;
+                left: 50%;
+                top: -2rem;
+                transform: translateX(-50%);
+            }
+        }
+        @media (max-width: 640px) {
+            .node {
+                width: 95%;
+            }
+            .root-node .node-box {
+                padding: 1rem 1.5rem;
+                font-size: 1.3rem;
+            }
+            .node-title {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="mindmap-container">
+        <!-- 标题区域 -->
+        <div class="mindmap-header">
+            <h1>交通管控AI模型算法流程</h1>
+            <p>基于百度地图API+随机森林+Q-Learning（思维导图式）</p>
+        </div>
+
+        <!-- 思维导图主体 -->
+        <div class="mindmap">
+            <!-- 根节点：总模型 -->
+            <div class="root-node">
+                <div class="node-box">
+                    交通管控AI模型
+                    <div class="text-sm opacity-80 mt-1">API数据接入→拥堵预测→协同控制</div>
+                </div>
+            </div>
+
+            <!-- 一级节点：两大核心阶段 -->
+            <div class="level-1-container">
+                <!-- 一级节点1：模型初始化阶段 -->
+                <div class="node">
+                    <div class="node-box">
+                        <div class="node-title"><i class="fa-solid fa-cogs"></i>模型初始化阶段（仅执行1次）</div>
+                        <div class="node-content">
+                            完成参数配置、模块初始化与预训练，为运行阶段提供基础
+                        </div>
+                    </div>
+
+                    <!-- 二级节点：初始化子模块 -->
+                    <div class="level-2-container">
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-sliders"></i>全局参数配置</div>
+                                <div class="node-content">
+                                    <!-- 三级节点：配置项 -->
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">百度API配置</div>
+                                                <div class="node-content text-sm">AK/SK、基础地址、接口路径、数据字段映射</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">管控路口配置</div>
+                                                <div class="node-content text-sm">路口ID、下游关联关系、车道数（如A→下游B/C）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">模型参数配置</div>
+                                                <div class="node-content text-sm">拥堵阈值（70%）、Q-Learning超参（800轮/α=0.15）、随机森林参数</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-puzzle-piece"></i>核心模块初始化</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">SNCalculator</div>
+                                                <div class="node-content text-sm">计算百度API安全码（SN），确保请求合法</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">TrafficDataFetcher</div>
+                                                <div class="node-content text-sm">API数据获取、预处理、异常时生成模拟数据</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">CongestionEstimator</div>
+                                                <div class="node-content text-sm">随机森林模型，实现拥堵等级与概率预测</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">Q-Learning相关</div>
+                                                <div class="node-content text-sm">MultiIntersectionEnv（环境）+ MultiIntersectionQLearning（智能体）</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-graduation-cap"></i>Q-Learning预训练</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">训练逻辑</div>
+                                                <div class="node-content text-sm">随机选目标拥堵路口→ε-贪心选动作→计算奖励→更新Q表</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">训练输出</div>
+                                                <div class="node-content text-sm">800轮迭代后生成Q表，输出“总奖励-轮次”训练曲线</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 一级节点2：模型运行阶段 -->
+                <div class="node">
+                    <div class="node-box">
+                        <div class="node-title"><i class="fa-solid fa-play-circle"></i>模型运行阶段（循环执行）</div>
+                        <div class="node-content">
+                            按60秒间隔循环，完成“数据获取→预测→控制→日志”全流程
+                        </div>
+                    </div>
+
+                    <!-- 二级节点：运行子流程 -->
+                    <div class="level-2-container">
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-download"></i>API数据获取与预处理</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">请求构建</div>
+                                                <div class="node-content text-sm">调用SNCalculator生成含SN的合法URL，传入IP（可选）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">数据处理</div>
+                                                <div class="node-content text-sm">提取管控路口数据（平均速度/拥堵长度），新增时段/周末特征</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">异常兜底</div>
+                                                <div class="node-content text-sm">API请求失败时，生成符合分布的模拟交通数据</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-chart-line"></i>拥堵等级与概率预测</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">输入特征</div>
+                                                <div class="node-content text-sm">平均速度 + 拥堵长度 + 时段（hour） + 是否周末（is_weekend）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">预测输出</div>
+                                                <div class="node-content text-sm">拥堵等级（轻/中/重）、重度拥堵概率（用于触发控制）</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-filter-circle-xmark"></i>拥堵阈值判断</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">触发条件</div>
+                                                <div class="node-content text-sm">任一管控路口“重度拥堵概率≥70%”</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">分支逻辑</div>
+                                                <div class="node-content text-sm">未触发：打印提示→等待60秒→重新循环；触发：进入多路口协同控制</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-traffic-light"></i>多路口协同控制</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">数据转换</div>
+                                                <div class="node-content text-sm">拥堵长度×10→排队车辆数（如0.8km→8辆）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">动作生成</div>
+                                                <div class="node-content text-sm">基于排队数获取状态码→调用Q表选最优动作（绿灯±10/±5/0秒）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">协同逻辑</div>
+                                                <div class="node-content text-sm">调控当前路口时，同步更新下游路口排队数（避免下游拥堵）</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="level-2-node">
+                            <div class="node-box">
+                                <div class="node-title"><i class="fa-solid fa-file-lines"></i>调控日志记录与循环</div>
+                                <div class="node-content">
+                                    <div class="level-3-container">
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">效果记录</div>
+                                                <div class="node-content text-sm">记录调控前/后各路口拥堵长度，生成日志（时间/触发路口/指令）</div>
+                                            </div>
+                                        </div>
+                                        <div class="level-3-node">
+                                            <div class="node-box">
+                                                <div class="node-title">循环等待</div>
+                                                <div class="node-content text-sm">等待30秒（调控生效）→获取后数据→等待60秒→重新进入下一轮</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交互提示 -->
+    <script>
+        // 节点hover效果增强
+        document.querySelectorAll('.node-box').forEach(box => {
+            box.addEventListener('mouseenter', () => {
+                box.style.transform = 'translateY(-3px)';
+                box.style.boxShadow = '0 6px 12px rgba(0,0,0,0.12)';
+                box.style.transition = 'all 0.3s ease';
+            });
+            box.addEventListener('mouseleave', () => {
+                box.style.transform = 'translateY(0)';
+                box.style.boxShadow = '';
+                box.style.transition = 'all 0.3s ease';
+            });
+        });
+    </script>
+</body>
+</html>
